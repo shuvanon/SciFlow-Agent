@@ -17,3 +17,7 @@ class ImageValidationError(SciFlowError):
 
 class ToolInputError(SciFlowError):
     """Raised when a tool receives an invalid image or parameter value."""
+
+
+class UnknownToolError(SciFlowError):
+    """Raised when a plan references a tool that is not in the registry."""
