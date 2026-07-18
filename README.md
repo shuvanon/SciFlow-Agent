@@ -1,8 +1,8 @@
 # 🔬 SciFlow Agent
 
-<!-- After pushing to GitHub, replace OWNER/REPO to activate the badge:
-[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
--->
+[![CI](https://github.com/shuvanon/SciFlow-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/shuvanon/SciFlow-Agent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
 **Describe a scientific image-analysis task in plain language. SciFlow Agent plans it with
 approved tools only, shows you the workflow, and runs it after your explicit approval.**

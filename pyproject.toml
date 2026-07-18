@@ -21,6 +21,10 @@ dependencies = [
     "httpx>=0.27,<1",
 ]
 
+[project.urls]
+Repository = "https://github.com/shuvanon/SciFlow-Agent"
+Issues = "https://github.com/shuvanon/SciFlow-Agent/issues"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0,<9",
