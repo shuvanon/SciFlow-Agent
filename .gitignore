@@ -25,6 +25,9 @@ htmlcov/
 reports/*
 !reports/.gitkeep
 
+# Benchmark dataset dumps (regenerable; results.csv/md stay tracked)
+benchmark/dataset/
+
 # Editors / OS
 .vscode/
 .idea/

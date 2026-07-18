@@ -1,0 +1,16 @@
+# Never bake secrets or local state into the image
+.env
+.git
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.claude
+.streamlit/secrets.toml
+reports
+benchmark/dataset
+docs/screenshots
+.github
