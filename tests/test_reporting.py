@@ -1,9 +1,11 @@
-"""Tests for the reproducibility report builders (first version)."""
+"""Tests for the reproducibility report builders (FR-13)."""
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
+from datetime import datetime
 
 import numpy as np
 import pytest
@@ -14,7 +16,13 @@ from src.executor import execute_plan
 from src.image_io import load_image_bytes
 from src.models import ImageMetadata
 from src.plan_validator import validate_plan
-from src.reporting import build_report, report_to_json, report_to_markdown
+from src.reporting import (
+    MAX_MARKDOWN_MEASUREMENT_ROWS,
+    REQUIRED_REPORT_KEYS,
+    build_report,
+    report_to_json,
+    report_to_markdown,
+)
 
 
 def _loaded_image():
@@ -52,6 +60,28 @@ def report() -> dict:
         plan=validation.normalized_plan,
         execution=execution,
     )
+
+
+def test_report_has_exactly_the_schema_keys(report: dict) -> None:
+    assert set(report.keys()) == REQUIRED_REPORT_KEYS
+
+
+def test_report_timestamp_is_valid_iso8601(report: dict) -> None:
+    parsed = datetime.fromisoformat(report["generated_at"])
+    assert parsed.tzinfo is not None  # explicit UTC offset
+
+
+def test_report_records_input_file_hash(report: dict) -> None:
+    loaded = _loaded_image()
+    array = np.full((48, 48), 15, dtype=np.uint8)
+    array[10:22, 10:22] = 210
+    array[30:38, 28:36] = 190
+    buffer = io.BytesIO()
+    Image.fromarray(array).save(buffer, format="PNG")
+    expected = hashlib.sha256(buffer.getvalue()).hexdigest()
+
+    assert loaded.metadata.sha256 == expected
+    assert report["input_image"]["sha256"] == expected
 
 
 def test_report_contains_required_metadata(report: dict) -> None:
@@ -115,7 +145,50 @@ def test_failed_execution_still_produces_report() -> None:
     assert report["execution"]["errors"]
     assert report["summary"] is None
     assert report["measurements"] == []
+    assert set(report.keys()) == REQUIRED_REPORT_KEYS  # same schema on failure
     json.loads(report_to_json(report))  # still serializable
+
+    markdown = report_to_markdown(report)
+    assert "## Errors" in markdown
+    assert "Execution success:** False" in markdown
+
+
+def test_markdown_caps_measurement_rows() -> None:
+    # 15x15 grid of isolated bright pixels -> 225 objects, above the cap.
+    image = np.zeros((64, 64), dtype=np.uint8)
+    image[2:62:4, 2:62:4] = 220
+    plan = ExecutionPlan(
+        goal="count_specks",
+        supported=True,
+        explanation="Segment and measure many tiny objects.",
+        steps=[ToolStep(tool="segment_otsu"), ToolStep(tool="measure_objects")],
+    )
+    validation = validate_plan(plan, channels=1)
+    execution = execute_plan(validation.normalized_plan, image)
+    assert execution.summary is not None
+    assert execution.summary.object_count > MAX_MARKDOWN_MEASUREMENT_ROWS
+
+    metadata = ImageMetadata(
+        filename="specks.png",
+        width=64,
+        height=64,
+        channels=1,
+        mode="L",
+        dtype="uint8",
+        minimum_intensity=0,
+        maximum_intensity=220,
+    )
+    report = build_report(
+        metadata=metadata,
+        request="count specks",
+        planner_mode="demo",
+        plan=validation.normalized_plan,
+        execution=execution,
+    )
+    markdown = report_to_markdown(report)
+    assert f"showing {MAX_MARKDOWN_MEASUREMENT_ROWS} of" in markdown
+    # JSON keeps the complete table.
+    assert len(report["measurements"]) == execution.summary.object_count
 
 
 def test_empty_segmentation_report_is_valid() -> None:

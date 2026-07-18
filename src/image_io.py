@@ -22,6 +22,7 @@ image *before* uint8 rescaling.
 
 from __future__ import annotations
 
+import hashlib
 import io
 from pathlib import Path
 
@@ -127,6 +128,7 @@ def load_image_bytes(
         dtype=original_dtype,
         minimum_intensity=minimum_intensity,
         maximum_intensity=maximum_intensity,
+        sha256=hashlib.sha256(data).hexdigest(),
     )
     return LoadedImage(original=normalized, metadata=metadata)
 

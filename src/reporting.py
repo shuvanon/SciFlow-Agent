@@ -1,11 +1,26 @@
 """Reproducibility reports (FR-13): JSON and Markdown builders.
 
-First version shipped with the UI phase; Phase 7 completes the schema
-(input-file hashing, exhaustive field coverage, dedicated tests).
+Report schema (version 1) — every report contains exactly these top-level
+fields, pinned by ``REQUIRED_REPORT_KEYS`` and enforced by tests:
 
-Reports are built only from explicitly passed values — never from the
-configuration object — so secrets cannot leak into a report by
-construction.
+- ``report_version``: schema version of the report itself.
+- ``generated_at``: UTC timestamp (ISO 8601) of report creation.
+- ``software_version``: SciFlow Agent version that produced the result.
+- ``input_image``: filename, dimensions, channels, original mode/dtype,
+  intensity range, and the SHA-256 hash of the original file bytes.
+- ``user_request``: the natural-language request as entered.
+- ``planner_mode``: ``demo`` or ``llm``.
+- ``plan``: the validated, normalized execution plan (defaults filled in).
+- ``execution``: success flag, total runtime, per-step tool/parameters/
+  runtime/warnings, plus run-level warnings and errors.
+- ``summary``: aggregate statistics (FR-12), or ``null`` when measurement
+  never ran.
+- ``measurements``: per-object rows (FR-11), empty when nothing was
+  measured.
+
+Reports exist for successful **and** failed executions. They are built only
+from explicitly passed values — never from the configuration object — so
+secrets cannot leak into a report by construction.
 """
 
 from __future__ import annotations
@@ -20,6 +35,22 @@ from src.executor import ExecutionResult
 from src.models import ImageMetadata
 
 REPORT_VERSION = 1
+
+#: Exact top-level keys of a version-1 report; tests pin this contract.
+REQUIRED_REPORT_KEYS = frozenset(
+    {
+        "report_version",
+        "generated_at",
+        "software_version",
+        "input_image",
+        "user_request",
+        "planner_mode",
+        "plan",
+        "execution",
+        "summary",
+        "measurements",
+    }
+)
 
 #: Markdown reports include at most this many measurement rows.
 MAX_MARKDOWN_MEASUREMENT_ROWS = 200

@@ -14,6 +14,8 @@ class ImageMetadata:
 
     ``mode``, ``dtype``, and the intensity range describe the image as it was
     loaded, before normalization to the internal uint8 representation.
+    ``sha256`` is the hash of the original file bytes, so a report can be
+    matched unambiguously to its exact input file (FR-13).
     """
 
     filename: str
@@ -24,6 +26,7 @@ class ImageMetadata:
     dtype: str
     minimum_intensity: float
     maximum_intensity: float
+    sha256: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dictionary."""

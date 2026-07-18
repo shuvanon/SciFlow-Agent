@@ -249,6 +249,36 @@ def _last_processed_image(execution: ExecutionResult) -> np.ndarray | None:
     return latest
 
 
+def _render_download_section(loaded: LoadedImage, execution: ExecutionResult) -> None:
+    """Offer JSON and Markdown reports — for failed executions as well."""
+    st.subheader("4. Download report")
+    report = build_report(
+        metadata=loaded.metadata,
+        request=str(st.session_state.get("request_input", "")).strip(),
+        planner_mode=st.session_state["planner_mode_used"],
+        plan=st.session_state["validation"].normalized_plan,
+        execution=execution,
+    )
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    download_columns = st.columns([1, 1, 2])
+    with download_columns[0]:
+        st.download_button(
+            "⬇ JSON report",
+            data=report_to_json(report),
+            file_name=f"sciflow_report_{stamp}.json",
+            mime="application/json",
+            key="download_json",
+        )
+    with download_columns[1]:
+        st.download_button(
+            "⬇ Markdown report",
+            data=report_to_markdown(report),
+            file_name=f"sciflow_report_{stamp}.md",
+            mime="text/markdown",
+            key="download_markdown",
+        )
+
+
 def _render_results(loaded: LoadedImage, execution: ExecutionResult) -> None:
     st.subheader("3. Results")
 
@@ -259,6 +289,12 @@ def _render_results(loaded: LoadedImage, execution: ExecutionResult) -> None:
             st.error(error)
         if execution.steps:
             st.caption(f"{len(execution.steps)} step(s) completed before the failure.")
+        if execution.images:
+            with st.expander("Intermediate images before the failure"):
+                for key, array in execution.images.items():
+                    display = to_display_mask(array) if array.dtype == np.bool_ else array
+                    st.image(display, caption=key, width=280)
+        _render_download_section(loaded, execution)
         return
 
     processed = _last_processed_image(execution)
@@ -329,32 +365,7 @@ def _render_results(loaded: LoadedImage, execution: ExecutionResult) -> None:
             ]
         )
 
-    st.subheader("4. Download report")
-    report = build_report(
-        metadata=loaded.metadata,
-        request=str(st.session_state.get("request_input", "")).strip(),
-        planner_mode=st.session_state["planner_mode_used"],
-        plan=st.session_state["validation"].normalized_plan,
-        execution=execution,
-    )
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    download_columns = st.columns([1, 1, 2])
-    with download_columns[0]:
-        st.download_button(
-            "⬇ JSON report",
-            data=report_to_json(report),
-            file_name=f"sciflow_report_{stamp}.json",
-            mime="application/json",
-            key="download_json",
-        )
-    with download_columns[1]:
-        st.download_button(
-            "⬇ Markdown report",
-            data=report_to_markdown(report),
-            file_name=f"sciflow_report_{stamp}.md",
-            mime="text/markdown",
-            key="download_markdown",
-        )
+    _render_download_section(loaded, execution)
 
 
 def main() -> None:

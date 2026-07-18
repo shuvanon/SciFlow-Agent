@@ -18,6 +18,17 @@ def _encode(array: np.ndarray, image_format: str = "PNG") -> bytes:
     return buffer.getvalue()
 
 
+def test_metadata_includes_sha256_of_original_bytes() -> None:
+    import hashlib
+
+    array = np.zeros((10, 10), dtype=np.uint8)
+    data = _encode(array)
+
+    loaded = load_image_bytes(data, "hashme.png")
+
+    assert loaded.metadata.sha256 == hashlib.sha256(data).hexdigest()
+
+
 def test_loads_grayscale_png_with_metadata() -> None:
     array = np.zeros((10, 20), dtype=np.uint8)
     array[2:5, 3:9] = 200
