@@ -32,6 +32,7 @@ class AppConfig:
     llm_base_url: str = ""
     llm_api_key: str = field(default="", repr=False)  # excluded from repr: never log secrets
     llm_model: str = ""
+    llm_timeout_seconds: int = 120  # generous: local models can be slow
     max_workflow_steps: int = 8
     max_image_width: int = 4096
     max_image_height: int = 4096
@@ -81,6 +82,7 @@ def load_config(*, use_dotenv: bool = True) -> AppConfig:
         llm_base_url=_read_str("LLM_BASE_URL", ""),
         llm_api_key=_read_str("LLM_API_KEY", ""),
         llm_model=_read_str("LLM_MODEL", ""),
+        llm_timeout_seconds=_read_int("LLM_TIMEOUT_SECONDS", 120),
         max_workflow_steps=_read_int("MAX_WORKFLOW_STEPS", 8),
         max_image_width=_read_int("MAX_IMAGE_WIDTH", 4096),
         max_image_height=_read_int("MAX_IMAGE_HEIGHT", 4096),

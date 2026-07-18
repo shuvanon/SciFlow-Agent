@@ -21,3 +21,12 @@ class ToolInputError(SciFlowError):
 
 class UnknownToolError(SciFlowError):
     """Raised when a plan references a tool that is not in the registry."""
+
+
+class PlannerError(SciFlowError):
+    """Raised when planning fails (connection, configuration, or invalid output).
+
+    The message is always safe to show to the user: it never contains
+    secrets, and it includes guidance (retry, rephrase, or switch to demo
+    mode) where applicable.
+    """

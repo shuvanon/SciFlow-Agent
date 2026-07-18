@@ -68,6 +68,7 @@ Copy `.env.example` to `.env` and adjust as needed. Key settings:
 | `LLM_BASE_URL` | — | OpenAI-compatible endpoint (LLM mode only) |
 | `LLM_API_KEY` | — | API key (never logged or included in reports) |
 | `LLM_MODEL` | — | Model name |
+| `LLM_TIMEOUT_SECONDS` | `120` | LLM request timeout (raise it for slow local models) |
 | `MAX_WORKFLOW_STEPS` | `8` | Safety cap on plan length |
 | `MAX_IMAGE_WIDTH` / `MAX_IMAGE_HEIGHT` | `4096` | Maximum accepted image size |
 

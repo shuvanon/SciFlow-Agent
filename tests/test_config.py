@@ -11,6 +11,7 @@ ALL_VARS = [
     "LLM_BASE_URL",
     "LLM_API_KEY",
     "LLM_MODEL",
+    "LLM_TIMEOUT_SECONDS",
     "MAX_WORKFLOW_STEPS",
     "MAX_IMAGE_WIDTH",
     "MAX_IMAGE_HEIGHT",
@@ -31,6 +32,7 @@ def test_defaults_without_environment(clean_env: pytest.MonkeyPatch) -> None:
     assert config.planner_mode == "demo"
     assert config.llm_base_url == ""
     assert config.llm_api_key == ""
+    assert config.llm_timeout_seconds == 120
     assert config.max_workflow_steps == 8
     assert config.max_image_width == 4096
     assert config.max_image_height == 4096
@@ -41,12 +43,14 @@ def test_environment_overrides(clean_env: pytest.MonkeyPatch) -> None:
     clean_env.setenv("PLANNER_MODE", "LLM")
     clean_env.setenv("LLM_BASE_URL", "http://localhost:1234/v1")
     clean_env.setenv("MAX_WORKFLOW_STEPS", "5")
+    clean_env.setenv("LLM_TIMEOUT_SECONDS", "180")
     clean_env.setenv("LOG_LEVEL", "debug")
 
     config = load_config(use_dotenv=False)
     assert config.planner_mode == "llm"  # normalized to lowercase
     assert config.llm_base_url == "http://localhost:1234/v1"
     assert config.max_workflow_steps == 5
+    assert config.llm_timeout_seconds == 180
     assert config.log_level == "DEBUG"  # normalized to uppercase
 
 
