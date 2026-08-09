@@ -7,10 +7,15 @@ results state — the full browser workflow without a browser.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from streamlit.testing.v1 import AppTest
 
-APP_PATH = "app.py"
+# Absolute path so AppTest works regardless of Streamlit's relative-path
+# resolution (older versions resolved against the CWD, newer ones against the
+# calling test file) and regardless of the pytest working directory.
+APP_PATH = str(Path(__file__).resolve().parent.parent / "app.py")
 
 
 @pytest.fixture()
