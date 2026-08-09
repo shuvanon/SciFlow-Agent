@@ -1,0 +1,15 @@
+# Optional ML dependencies for the deep-learning segmentation tool (segment_ml).
+# The base app (demo mode + classical tools) does NOT need any of these.
+#
+# CPU install (works everywhere, reviewers): pip install -r requirements-ml.txt
+# GPU install (recommended, much faster): install the CUDA build of torch FIRST, e.g.
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# then: pip install -r requirements-ml.txt
+#
+# Verified versions (2026-08): torch 2.5.1, torchvision 0.20.1,
+# torchxrayvision 1.5.2, pydicom 3.0.2.
+
+torch>=2.2,<3
+torchvision>=0.17,<1
+torchxrayvision>=1.3,<2
+pydicom>=2.4,<4

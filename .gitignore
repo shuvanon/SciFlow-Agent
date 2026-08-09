@@ -28,6 +28,9 @@ reports/*
 # Benchmark dataset dumps (regenerable; results.csv/md stay tracked)
 benchmark/dataset/
 
+# Downloaded sample images (regenerable via examples/fetch_sample_images.py)
+sample_images/
+
 # Editors / OS
 .vscode/
 .idea/
@@ -36,3 +39,5 @@ Thumbs.db
 
 # Project specific 
 docs/
+# Downloaded benchmark datasets (regenerable via fetch script)
+data/

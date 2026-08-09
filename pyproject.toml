@@ -31,6 +31,15 @@ dev = [
     "ruff>=0.6,<1",
     "mypy>=1.10,<2",
 ]
+# Deep-learning segmentation tool (segment_ml). Optional: the base app and demo
+# mode run without these. For GPU, install the CUDA torch build first (see
+# requirements-ml.txt). CPU works out of the box.
+ml = [
+    "torch>=2.2,<3",
+    "torchvision>=0.17,<1",
+    "torchxrayvision>=1.3,<2",
+    "pydicom>=2.4,<4",
+]
 
 [tool.setuptools]
 packages = ["src", "src.agent", "src.tools"]
