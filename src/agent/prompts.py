@@ -69,10 +69,11 @@ RULES:
 2. Step order: convert_to_grayscale (only if the image is RGB) -> denoise_median -> \
 enhance_contrast -> segment_otsu -> clean_mask -> measure_objects. Include only the steps \
 the request needs.
-3. segment_otsu requires a grayscale image. clean_mask and measure_objects require \
-segment_otsu earlier in the plan.
-4. When the user wants objects counted or measured, include segment_otsu, clean_mask, and \
-measure_objects.
+3. segment_otsu requires a grayscale image. clean_mask and measure_objects require a \
+segmentation step (segment_otsu OR segment_ml) earlier in the plan.
+4. When the user wants objects counted or measured, include a segmentation step, clean_mask, \
+and measure_objects. Use segment_ml (deep learning) when the request asks for it or names \
+lungs / chest X-ray; otherwise use segment_otsu.
 5. Use at most {max_steps} steps.
 6. If the request asks for anything outside these tools (code execution, file or shell \
 operations, network access, 3D or DICOM data, model training), set "supported": false with \

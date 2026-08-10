@@ -17,13 +17,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.tools import preprocessing, segmentation
+from src.tools import ml_segmentation, preprocessing, segmentation
 
 AllowedToolName = Literal[
     "convert_to_grayscale",
     "denoise_median",
     "enhance_contrast",
     "segment_otsu",
+    "segment_ml",
     "clean_mask",
     "measure_objects",
 ]
@@ -34,6 +35,7 @@ ALLOWED_TOOL_NAMES: tuple[str, ...] = (
     "denoise_median",
     "enhance_contrast",
     "segment_otsu",
+    "segment_ml",
     "clean_mask",
     "measure_objects",
 )
@@ -103,6 +105,21 @@ class CleanMaskParameters(_StrictModel):
     fill_holes: bool = Field(
         default=False,
         description="Fill holes smaller than minimum_object_size inside objects.",
+    )
+
+
+class MlSegmentParameters(_StrictModel):
+    """Parameters for ``segment_ml`` (pretrained deep-learning segmentation)."""
+
+    model_name: Literal["cxr_lung"] = Field(
+        default=ml_segmentation.DEFAULT_MODEL,
+        description="Approved pretrained model to run.",
+    )
+    threshold: float = Field(
+        default=ml_segmentation.DEFAULT_THRESHOLD,
+        ge=ml_segmentation.MIN_THRESHOLD,
+        le=ml_segmentation.MAX_THRESHOLD,
+        description="Foreground probability cutoff for the mask.",
     )
 
 

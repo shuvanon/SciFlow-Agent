@@ -157,6 +157,9 @@ def _describe_step(step: ToolStep) -> str:
         return f"Enhance contrast (CLAHE, clip limit {parameters.get('clip_limit', 0.01)})"
     if step.tool == "segment_otsu":
         return f"Segment {parameters.get('polarity', 'bright')} objects using Otsu thresholding"
+    if step.tool == "segment_ml":
+        model = parameters.get("model_name", "cxr_lung")
+        return f"Segment with a pretrained deep-learning model ({model})"
     if step.tool == "clean_mask":
         text = f"Remove objects smaller than {parameters.get('minimum_object_size', 30)} pixels"
         if parameters.get("fill_holes"):

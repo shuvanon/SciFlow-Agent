@@ -18,8 +18,9 @@ from pydantic import BaseModel
 
 from src.agent import schemas
 from src.errors import UnknownToolError
-from src.tools import preprocessing, segmentation
+from src.tools import ml_segmentation, preprocessing, segmentation
 from src.tools.measurement import measure_objects
+from src.tools.ml_segmentation import segment_ml
 from src.tools.preprocessing import convert_to_grayscale, denoise_median, enhance_contrast
 from src.tools.segmentation import clean_mask, segment_otsu
 
@@ -83,6 +84,20 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {
         description="Create a binary mask by Otsu thresholding. Parameter: polarity "
         "('bright' for bright objects on dark background, 'dark' for the opposite; "
         "default 'bright').",
+    ),
+    "segment_ml": ToolDefinition(
+        name="segment_ml",
+        function=segment_ml,
+        parameter_model=schemas.MlSegmentParameters,
+        input_type=INPUT_IMAGE,
+        output_type=OUTPUT_MASK,
+        description="Segment with a pretrained deep-learning model (requires the optional "
+        "[ml] dependencies). Parameters: model_name ('"
+        + "', '".join(sorted(ml_segmentation.SUPPORTED_MODELS))
+        + f"'; currently chest X-ray lungs), threshold (number, "
+        f"{ml_segmentation.MIN_THRESHOLD}-{ml_segmentation.MAX_THRESHOLD}, "
+        f"default {ml_segmentation.DEFAULT_THRESHOLD}). Accepts the image directly; "
+        "no grayscale step required.",
     ),
     "clean_mask": ToolDefinition(
         name="clean_mask",

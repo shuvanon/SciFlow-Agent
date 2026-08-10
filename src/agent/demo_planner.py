@@ -81,11 +81,13 @@ _OUT_OF_SCOPE_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
         "medical imaging formats (DICOM/NIfTI)",
     ),
     (
+        # Deep-learning *segmentation* is supported via segment_ml; still reject
+        # model training and model frameworks that are not integrated.
         re.compile(
-            r"\b(?:train(?:ing)?|fine-?tune|neural\s+networks?|deep\s+learning|cellpose|"
-            r"stardist|nnu-?net|sam|segment\s+anything)\b"
+            r"\b(?:train(?:ing)?|fine-?tune|cellpose|"
+            r"stardist|nnu-?net|monai|sam|segment\s+anything)\b"
         ),
-        "machine-learning model training or integration",
+        "model training or an unsupported model framework",
     ),
 )
 
@@ -105,6 +107,12 @@ _MEASURE = re.compile(
     r"\b(?:count[a-z]*|measure[a-z]*|sizes?|areas?|quantify|statistics|properties|how\s+many)\b"
 )
 _FILL_HOLES = re.compile(r"\bfill\s+(?:the\s+)?holes?\b")
+
+#: Route the segmentation step to the deep-learning tool (segment_ml).
+_ML = re.compile(
+    r"\b(?:deep[- ]?learning|neural(?:\s+network)?|pretrained|torchxrayvision|"
+    r"lungs?|chest\s+x-?rays?|cxr|ml\s+(?:model|segmentation)|ai\s+(?:model|segmentation))\b"
+)
 
 _DARK_OBJECTS = re.compile(
     r"\bdark(?:er)?\s+(?:objects?|cells?|regions?|particles?|blobs?|spots?|nuclei|areas?)\b"
@@ -223,7 +231,8 @@ def generate_demo_plan(request: str, *, channels: int | None = None) -> Executio
     clean_keywords = bool(_CLEAN.search(text))
     measure_keywords = bool(_MEASURE.search(text))
     segment_keywords = bool(_SEGMENT.search(text))
-    wants_segment = segment_keywords or clean_keywords or measure_keywords
+    wants_ml = bool(_ML.search(text))
+    wants_segment = segment_keywords or clean_keywords or measure_keywords or wants_ml
 
     if not (wants_denoise or wants_contrast or wants_segment):
         return _unsupported_plan(
@@ -253,15 +262,20 @@ def generate_demo_plan(request: str, *, channels: int | None = None) -> Executio
         goal_parts.append("enhance_contrast")
 
     if wants_segment:
-        if not segment_keywords:
+        if not segment_keywords and not wants_ml:
             warnings.append(
                 "Segmentation was added because removing small regions or measuring "
                 "requires detected objects."
             )
-        polarity = _detect_polarity(text)
-        steps.append(ToolStep(tool="segment_otsu", parameters={"polarity": polarity}))
-        phrases.append(f"segment {polarity} objects with Otsu thresholding")
-        goal_parts.append("segment")
+        if wants_ml:
+            steps.append(ToolStep(tool="segment_ml", parameters={"model_name": "cxr_lung"}))
+            phrases.append("segment the lungs with a pretrained deep-learning model")
+            goal_parts.append("segment_ml")
+        else:
+            polarity = _detect_polarity(text)
+            steps.append(ToolStep(tool="segment_otsu", parameters={"polarity": polarity}))
+            phrases.append(f"segment {polarity} objects with Otsu thresholding")
+            goal_parts.append("segment")
 
         minimum_size = _extract_minimum_size(text, warnings)
         fill_holes = bool(_FILL_HOLES.search(text))
