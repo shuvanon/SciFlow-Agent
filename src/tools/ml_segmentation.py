@@ -24,6 +24,8 @@ via torchxrayvision's PSPNet (targets "Left Lung" and "Right Lung").
 
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -153,3 +155,42 @@ def segment_ml(
     torch, xrv = _import_backend()
     probability = _predict_lung_probability(image, model_name, torch, xrv)
     return probability >= float(threshold)
+
+
+_WEIGHTS_HASH_CACHE: dict[str, str] = {}
+
+
+def _weights_sha256(model: Any) -> str:
+    """SHA-256 of the model's local weights file, cached per path ("" if unknown)."""
+    path = getattr(model, "weights_filename_local", "")
+    if not path or not Path(path).is_file():
+        return ""
+    key = str(path)
+    if key not in _WEIGHTS_HASH_CACHE:
+        digest = hashlib.sha256()
+        with open(path, "rb") as handle:
+            for chunk in iter(lambda: handle.read(1 << 20), b""):
+                digest.update(chunk)
+        _WEIGHTS_HASH_CACHE[key] = digest.hexdigest()
+    return _WEIGHTS_HASH_CACHE[key]
+
+
+def model_metadata(model_name: str) -> dict[str, Any]:
+    """Provenance for the reproducibility report: model, versions, device, weights hash.
+
+    Requires the ML backend (only called after the tool has run successfully).
+    """
+    if model_name not in SUPPORTED_MODELS:
+        return {"model_name": model_name}
+    torch, xrv = _import_backend()
+    model, device = _get_model(model_name, torch, xrv)
+    info = SUPPORTED_MODELS[model_name]
+    return {
+        "model_name": model_name,
+        "display_name": info["display_name"],
+        "framework": info["framework"],
+        "framework_version": getattr(xrv, "__version__", "unknown"),
+        "torch_version": getattr(torch, "__version__", "unknown"),
+        "device": device,
+        "weights_sha256": _weights_sha256(model),
+    }

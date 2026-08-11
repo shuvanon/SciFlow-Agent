@@ -40,6 +40,7 @@ class StepResult:
     parameters: dict[str, Any]
     runtime_seconds: float
     warnings: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -133,12 +134,23 @@ def execute_plan(plan: ExecutionPlan, image: np.ndarray) -> ExecutionResult:
             break
 
         runtime = time.perf_counter() - step_start
+
+        # Optional per-tool provenance (e.g. ML model name/version/weights hash)
+        # for the reproducibility report. Never fatal to the run.
+        step_metadata: dict[str, Any] = {}
+        if definition.metadata_fn is not None:
+            try:
+                step_metadata = definition.metadata_fn(kwargs)
+            except Exception:  # metadata is best-effort, never breaks execution
+                logger.warning("Could not collect metadata for %s", step.tool)
+
         result.steps.append(
             StepResult(
                 tool=step.tool,
                 parameters=kwargs,
                 runtime_seconds=runtime,
                 warnings=step_warnings,
+                metadata=step_metadata,
             )
         )
         result.warnings.extend(f"{label}: {message}" for message in step_warnings)

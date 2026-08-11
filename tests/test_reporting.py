@@ -12,7 +12,7 @@ import pytest
 from PIL import Image
 
 from src.agent.schemas import ExecutionPlan, ToolStep
-from src.executor import execute_plan
+from src.executor import ExecutionResult, StepResult, execute_plan
 from src.image_io import load_image_bytes
 from src.models import ImageMetadata
 from src.plan_validator import validate_plan
@@ -114,6 +114,67 @@ def test_report_markdown_contains_sections(report: dict) -> None:
     assert "## Summary statistics" in markdown
     assert "## Per-object measurements" in markdown
     assert "segment_otsu" in markdown
+
+
+def test_report_logs_model_metadata_in_json_and_markdown() -> None:
+    metadata = ImageMetadata(
+        filename="cxr.png",
+        width=8,
+        height=8,
+        channels=1,
+        mode="L",
+        dtype="uint8",
+        minimum_intensity=0,
+        maximum_intensity=255,
+        sha256="abc123",
+    )
+    plan = ExecutionPlan(
+        goal="segment_lungs",
+        supported=True,
+        explanation="Segment the lungs.",
+        steps=[
+            ToolStep(tool="segment_ml", parameters={"model_name": "cxr_lung", "threshold": 0.5})
+        ],
+    )
+    model_meta = {
+        "model_name": "cxr_lung",
+        "display_name": "Chest X-ray lung segmentation",
+        "framework": "torchxrayvision",
+        "framework_version": "1.5.2",
+        "torch_version": "2.5.1",
+        "device": "cuda",
+        "weights_sha256": "deadbeefcafe",
+    }
+    execution = ExecutionResult(
+        success=True,
+        steps=[
+            StepResult(
+                tool="segment_ml",
+                parameters={"model_name": "cxr_lung", "threshold": 0.5},
+                runtime_seconds=0.5,
+                metadata=model_meta,
+            )
+        ],
+        total_runtime_seconds=0.5,
+    )
+
+    report = build_report(
+        metadata=metadata,
+        request="Segment the lungs.",
+        planner_mode="demo",
+        plan=plan,
+        execution=execution,
+    )
+
+    step = report["execution"]["steps"][0]
+    assert step["metadata"]["weights_sha256"] == "deadbeefcafe"
+    assert step["metadata"]["framework"] == "torchxrayvision"
+    assert set(report.keys()) == REQUIRED_REPORT_KEYS  # top-level schema unchanged
+
+    markdown = report_to_markdown(report)
+    assert "## Models used" in markdown
+    assert "deadbeefcafe" in markdown
+    assert "torchxrayvision" in markdown
 
 
 def test_report_never_contains_secrets(monkeypatch, report: dict) -> None:

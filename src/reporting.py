@@ -86,6 +86,7 @@ def build_report(
                     "parameters": step.parameters,
                     "runtime_seconds": round(step.runtime_seconds, 4),
                     "warnings": step.warnings,
+                    "metadata": step.metadata,
                 }
                 for step in execution.steps
             ],
@@ -154,6 +155,21 @@ def report_to_markdown(report: dict[str, Any]) -> str:
         for index, step in enumerate(execution["steps"], start=1)
     ]
     sections += [_markdown_table(step_rows), ""]
+
+    model_rows = [
+        {
+            "tool": step["tool"],
+            "model": step["metadata"].get("display_name", step["metadata"].get("model_name", "")),
+            "framework": step["metadata"].get("framework", ""),
+            "framework_version": step["metadata"].get("framework_version", ""),
+            "device": step["metadata"].get("device", ""),
+            "weights_sha256": step["metadata"].get("weights_sha256", ""),
+        }
+        for step in execution["steps"]
+        if step.get("metadata")
+    ]
+    if model_rows:
+        sections += ["## Models used", "", _markdown_table(model_rows), ""]
 
     if summary is not None:
         sections += ["## Summary statistics", "", _markdown_table([summary]), ""]

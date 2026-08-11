@@ -35,7 +35,13 @@ OUTPUT_TABLE = "table"
 
 @dataclass(frozen=True)
 class ToolDefinition:
-    """A single approved tool: callable, parameter schema, and data-flow types."""
+    """A single approved tool: callable, parameter schema, and data-flow types.
+
+    ``metadata_fn`` is an optional hook: given the executed parameters, it
+    returns a provenance dictionary (e.g. an ML model's name/version/weights
+    hash) that the executor attaches to the step for the reproducibility
+    report. It must never be required for the tool to run.
+    """
 
     name: str
     function: Callable[..., Any]
@@ -43,6 +49,7 @@ class ToolDefinition:
     input_type: str
     output_type: str
     description: str
+    metadata_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None
 
 
 TOOL_REGISTRY: dict[str, ToolDefinition] = {
@@ -98,6 +105,9 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {
         f"{ml_segmentation.MIN_THRESHOLD}-{ml_segmentation.MAX_THRESHOLD}, "
         f"default {ml_segmentation.DEFAULT_THRESHOLD}). Accepts the image directly; "
         "no grayscale step required.",
+        metadata_fn=lambda parameters: ml_segmentation.model_metadata(
+            parameters.get("model_name", ml_segmentation.DEFAULT_MODEL)
+        ),
     ),
     "clean_mask": ToolDefinition(
         name="clean_mask",

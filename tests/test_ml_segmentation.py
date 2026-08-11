@@ -104,6 +104,12 @@ def test_registry_entry_shape() -> None:
     assert definition.input_type == "image"  # no forced grayscale step
     assert definition.output_type == "mask"
     assert definition.parameter_model is MlSegmentParameters
+    assert definition.metadata_fn is not None  # provenance hook for the report
+
+
+def test_model_metadata_unknown_model_returns_name_without_backend() -> None:
+    # The unknown-model branch returns before importing torch.
+    assert ml.model_metadata("bogus") == {"model_name": "bogus"}
 
 
 def _ml_plan(steps: list[ToolStep], supported: bool = True) -> ExecutionPlan:
