@@ -12,5 +12,10 @@ __pycache__
 .streamlit/secrets.toml
 reports
 benchmark/dataset
-docs/screenshots
+data
+sample_images
+docs
+tests
 .github
+.venv-ci
+.venv-fresh

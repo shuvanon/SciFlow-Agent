@@ -57,6 +57,45 @@ On the hardest case (`low_contrast`), raw Otsu produces 3 397 spurious objects (
 the planned pipeline scores IoU 0.955 with an exact object count. Reproduce it with
 `python benchmark/run_benchmark.py` — details in [benchmark/README.md](benchmark/README.md).
 
+## Deep-learning segmentation (optional)
+
+Beyond the classical tools, SciFlow Agent ships one **pretrained deep-learning segmentation
+tool**, `segment_ml`, registered behind the *same* validation boundary as every other tool:
+the planner selects it, the validator checks its parameters, the executor runs it, and it
+never bypasses the safety model. The current model segments **lung fields in chest X-rays**
+(torchxrayvision PSPNet).
+
+It is an **optional extra** — the base app, demo mode, and every classical tool work without
+it (the tool fails with a clear message if the extra is absent):
+
+```bash
+pip install -e ".[ml]"     # adds torch + torchxrayvision (large; GPU optional)
+```
+
+The tool **auto-detects a CUDA GPU** (falling back to CPU), and every run records the model
+name, framework/torch versions, device, and the **weights SHA-256** in the reproducibility
+report. Ask for it in plain language — *"Segment the lungs in this chest X-ray and measure
+them."* — and try the built-in `example_chest_xray.png`.
+
+**Classical vs deep learning** on real chest X-rays (Montgomery set, ground-truth lung masks):
+
+| Pipeline | Mean Dice | Mean IoU |
+|---|---|---|
+| Otsu (bright) | 0.115 | 0.061 |
+| Otsu (dark) | 0.542 | 0.384 |
+| **`segment_ml`** (deep learning) | **0.870** | **0.770** |
+
+Classical thresholding cannot isolate lungs — the brightest pixels are bone, so both
+polarities fail; the model learned lung anatomy. Reproduce with
+`python benchmark/run_cxr_benchmark.py` (needs the `[ml]` extra and the dataset — see
+[docs/datasets.md](docs/datasets.md)).
+
+### Medical images (DICOM)
+
+SciFlow Agent reads **DICOM** (`.dcm`/`.dicom`) 2D images — chest X-rays and similar —
+directly (RescaleSlope/Intercept applied, MONOCHROME1 inverted to the standard convention,
+first frame of a multi-frame series). DICOM support needs **no extra dependencies**.
+
 ## Quickstart
 
 Requires **Python 3.11+**.
@@ -86,14 +125,16 @@ docker run -p 8501:8501 sciflow-agent
 
 Configuration can be passed as environment variables, e.g.
 `docker run -p 8501:8501 -e PLANNER_MODE=demo sciflow-agent`. The image never contains
-your `.env` (excluded via `.dockerignore`).
+your `.env` (excluded via `.dockerignore`). The image is deliberately lean: it runs demo
+mode, all classical tools, and DICOM — the optional deep-learning tool (`[ml]`, ~GB of
+PyTorch) is not baked in and is best run from a local GPU environment.
 
 ## Using the app
 
 Full walkthrough with explanations of every panel and metric:
 **[docs/user_guide.md](docs/user_guide.md)**. The short version:
 
-1. Pick a built-in example or upload a PNG/JPG/TIFF (sidebar).
+1. Pick a built-in example or upload a PNG/JPG/TIFF/DICOM (sidebar).
 2. Choose the planner mode: **Demo** (offline) or **LLM**.
 3. Describe the analysis in the request box.
 4. Click **Generate plan** and review the numbered steps + validation verdict.
@@ -108,6 +149,7 @@ Count the bright objects in this image.
 Improve the contrast, segment bright regions, and ignore very small objects.
 Segment the dark objects and ignore regions smaller than 100 pixels.
 Denoise with radius 4 and count the cells.
+Segment the lungs in this chest X-ray and measure them.   (deep-learning model, needs [ml])
 ```
 
 Unsafe or out-of-scope requests ("run a shell command…", "train a neural network…") are
@@ -141,6 +183,7 @@ validation feedback, then a clear error; demo mode always remains available as f
 | `denoise_median` | `radius` 1–5 |
 | `enhance_contrast` | `clip_limit` 0.001–0.1 (CLAHE) |
 | `segment_otsu` | `polarity` bright/dark |
+| `segment_ml` | `model_name` (cxr_lung), `threshold` 0.05–0.95 — **deep learning, optional `[ml]`** |
 | `clean_mask` | `minimum_object_size` 0–100 000, `fill_holes` |
 | `measure_objects` | standard measurement set |
 
@@ -162,13 +205,16 @@ Details: [docs/architecture.md](docs/architecture.md) · decision history:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest              # 200 tests, incl. headless UI tests (Streamlit AppTest)
+pytest              # full suite: unit, integration, headless UI (AppTest), ML (torch-free)
 ruff check .        # lint
 ruff format .       # format
-python benchmark/run_benchmark.py        # reproduce benchmark results
+python benchmark/run_benchmark.py        # reproduce the synthetic benchmark
+python benchmark/run_cxr_benchmark.py    # classical vs ML on chest X-rays (needs [ml] + data)
 python examples/run_pipeline_demo.py     # scripted end-to-end pipeline demo
-python examples/generate_examples.py     # regenerate the example images
 ```
+
+The test suite runs **without** the `[ml]` extra (the deep-learning backend is mocked), so
+CI stays fast and torch-free.
 
 CI (GitHub Actions) runs lint, format check, tests, and a Docker build on every push.
 
@@ -197,7 +243,7 @@ print(result.summary.object_count)
 app.py                    Streamlit UI (wiring only — no analysis logic)
 src/
   agent/                  Planners: demo rules, LLM client, prompts, plan schemas
-  tools/                  Approved tools: preprocessing, segmentation, measurement
+  tools/                  Approved tools: preprocessing, segmentation, measurement, ML
   config.py               Env-based configuration
   image_io.py             Loading, validation, normalization, metadata + SHA-256
   plan_validator.py       Semantic plan validation
@@ -213,9 +259,12 @@ docs/                     Architecture, decision log, screenshots
 
 ## Limitations
 
-- **2D images only** — no z-stacks, DICOM, or NIfTI (see roadmap).
-- **Threshold-based segmentation**: global Otsu; touching objects are not separated
-  (no watershed yet), and heavily uneven illumination challenges it even with CLAHE.
+- **2D images only** — no z-stacks or 3D volumes; NIfTI is unsupported. (2D DICOM images,
+  e.g. chest X-rays, *are* supported.)
+- **Classical segmentation is threshold-based**: global Otsu; touching objects are not
+  separated (no watershed yet), and heavily uneven illumination challenges it even with
+  CLAHE. The optional `segment_ml` deep-learning tool currently covers only chest X-ray
+  lung fields.
 - Multi-page TIFFs: only the first page is used; 16-bit/float images are min–max rescaled
   to 8-bit for processing (original range recorded in metadata).
 - The demo planner understands English keyword patterns only.
@@ -228,10 +277,11 @@ docs/                     Architecture, decision log, screenshots
 
 - **Near-term**: additional thresholding methods, watershed separation, editable plans,
   saved workflow templates, CSV export of measurements, experiment history.
-- **Model-based**: Cellpose / Segment Anything integration as registered tools, automatic
-  model selection, image-quality assessment.
-- **Medical & 3D**: DICOM/NIfTI support, MONAI transforms, 3D pipelines, volumetric
-  measurement.
+- **Model-based**: more pretrained models as registered tools (one — chest X-ray lungs —
+  is already integrated via `segment_ml`); Cellpose / SAM / MONAI adapters, automatic model
+  selection, image-quality assessment.
+- **Medical & 3D**: NIfTI and 3D volumes (2D DICOM is already supported), MONAI transforms,
+  volumetric measurement.
 - **Platform**: FastAPI backend, MCP tool exposure, persistent job storage, remote
   execution workers.
 
@@ -246,7 +296,8 @@ docs/                     Architecture, decision log, screenshots
 | "The LLM did not respond within N s" | Raise `LLM_TIMEOUT_SECONDS` in `.env` (local models can be slow) |
 | LLM returns HTTP 404/400 | `LLM_MODEL` must exactly match the model name the server reports (`GET <base>/models`) |
 | "No objects detected" | Try the opposite polarity ("segment the *dark* objects"), lower the minimum size, or enhance contrast first |
-| Upload rejected | Supported: PNG, JPG/JPEG, TIFF up to 4096×4096 (configurable) |
+| Upload rejected | Supported: PNG, JPG/JPEG, TIFF, DICOM up to 4096×4096 (configurable) |
+| "segment_ml needs the optional ML dependencies" | Install the extra: `pip install -e ".[ml]"` |
 
 ## License
 
