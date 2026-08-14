@@ -22,6 +22,13 @@ from src.agent.planner import generate_plan
 from src.agent.schemas import ExecutionPlan, ToolStep
 from src.config import EXAMPLES_DIR, AppConfig, load_config, setup_logging
 from src.errors import ImageValidationError, PlannerError
+from src.example_catalogue import (
+    DEFAULT_EXAMPLE,
+    EXAMPLE_CATALOGUE,
+    GENERIC_PROMPTS,
+    example_label,
+    ordered_examples,
+)
 from src.executor import ExecutionResult, execute_plan
 from src.image_io import SUPPORTED_EXTENSIONS, load_image_bytes, load_image_file
 from src.models import LoadedImage
@@ -38,12 +45,6 @@ _STATE_DEFAULTS: dict[str, object] = {
     "planner_mode_used": "",
     "execution": None,
 }
-
-EXAMPLE_PROMPTS = [
-    "Remove noise, segment the bright objects, ignore very small regions, and measure them.",
-    "Count the bright objects in this image.",
-    "Improve the contrast, segment bright regions, and ignore very small objects.",
-]
 
 
 def _init_state() -> None:
@@ -73,20 +74,23 @@ def _sidebar_input(config: AppConfig) -> LoadedImage | None:
         source_id: str | None = None
         try:
             if source == "example":
-                example_paths = sorted(
+                example_paths = [
                     path
                     for extension in SUPPORTED_EXTENSIONS
                     for path in EXAMPLES_DIR.glob(f"*{extension}")
-                )
+                ]
                 if not example_paths:
                     st.error(
-                        "No example images found. Generate them with "
-                        "`python examples/generate_examples.py`."
+                        "No example images found. Fetch them with "
+                        "`python examples/fetch_example_data.py`."
                     )
                     return None
+                options = ordered_examples(example_paths)
                 selected = st.selectbox(
                     "Example image",
-                    options=[path.name for path in example_paths],
+                    options=options,
+                    index=options.index(DEFAULT_EXAMPLE) if DEFAULT_EXAMPLE in options else 0,
+                    format_func=example_label,
                     key="example_select",
                 )
                 loaded = load_image_file(
@@ -417,13 +421,19 @@ def main() -> None:
             f"- Original mode: `{metadata.mode}` (`{metadata.dtype}`)\n"
             f"- Intensity range: {metadata.minimum_intensity:g}–{metadata.maximum_intensity:g}"
         )
-        st.markdown("**Example requests**")
-        for prompt in EXAMPLE_PROMPTS:
-            st.caption(f"· {prompt}")
+        catalogue_entry = EXAMPLE_CATALOGUE.get(metadata.filename)
+        if catalogue_entry is not None:
+            st.markdown("**Suggested request for this image**")
+            st.info(catalogue_entry[1])
+        else:
+            st.markdown("**Example requests**")
+            for prompt in GENERIC_PROMPTS:
+                st.caption(f"· {prompt}")
 
+    suggested = catalogue_entry[1] if catalogue_entry is not None else GENERIC_PROMPTS[0]
     st.text_area(
         "What should be analyzed?",
-        placeholder=EXAMPLE_PROMPTS[0],
+        placeholder=suggested,
         key="request_input",
         height=90,
     )

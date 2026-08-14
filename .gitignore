@@ -28,7 +28,7 @@ reports/*
 # Benchmark dataset dumps (regenerable; results.csv/md stay tracked)
 benchmark/dataset/
 
-# Downloaded sample images (regenerable via examples/fetch_sample_images.py)
+# Sample images (regenerable from scikit-image's bundled data)
 sample_images/
 
 # Editors / OS
@@ -37,7 +37,14 @@ sample_images/
 Thumbs.db
 .DS_Store
 
-# Project specific 
-docs/
-# Downloaded benchmark datasets (regenerable via fetch script)
+# Docs: track the published reference documentation only.
+# (Allowlist — add a negation line to publish another file.)
+docs/*
+!docs/architecture.md
+!docs/user_guide.md
+!docs/results_guide.md
+!docs/system_design.svg
+!docs/screenshots/
+
+# Downloaded benchmark datasets (regenerable)
 data/

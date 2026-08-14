@@ -14,6 +14,13 @@ Filenames are `<source>_<dataset>.<ext>`, so every image traces back to where it
 All of them appear in the app's **Built-in example** dropdown, including the DICOM and TIFF
 files.
 
+The dropdown is ordered by modality with medical imaging first, and the app **opens on
+`pydicom_ct_head.dcm`** — a real CT that needs no optional dependency, so the first thing a
+new user sees is medical imaging that works on the base install. Each image carries the
+suggested request below, shown in the app next to the image. That ordering, the default, and
+the per-image requests all live in
+[`src/example_catalogue.py`](../src/example_catalogue.py).
+
 Every number below came from actually running that request through the demo planner and
 executor. None are estimates.
 
@@ -25,6 +32,7 @@ executor. None are estimates.
 |---|---|---|---|---|
 | `montgomery_cxr.dcm` | 1024×841 DICOM (DX) | *"Segment the lungs in this DICOM chest X-ray and measure them."* (needs `[ml]`) | 2 lungs | **The flagship medical example.** A real chest radiograph, read as DICOM with no extra dependencies, then segmented by the pretrained deep-learning model. DICOM + DL + measurement in one run |
 | `example_chest_xray.png` | 1024×841 grey | *"Segment the lungs in this chest X-ray and measure them."* (needs `[ml]`) | 2 lungs | The same radiograph as PNG, for the ML demo without DICOM |
+| `pydicom_ct_head.dcm` | 512×512 DICOM (CT) | *"Remove noise, segment the bone inside, ignore very small regions, and measure them."* | skull, **5.8%** of frame | **The multi-level thresholding example.** A head CT holds air, brain, and bone; a single Otsu threshold returns ~75% of the frame (air vs. everything else), so the planner switches to multi-Otsu and keeps the brightest class. Re-saved uncompressed, so it needs no JPEG 2000 codec |
 | `pydicom_ct_small.dcm` | 128×128 DICOM (CT) | *"Segment the bright regions in this DICOM image and measure them."* | 1 region | A real CT slice. Look at Image details: intensity range **−896 to 1167** — genuine Hounsfield units, negative values and all |
 | `pydicom_mr_small.dcm` | 64×64 DICOM (MR) | *"Segment the bright regions in this DICOM image and measure them."* | 3 regions | A real MR slice; range **127–2145**. A second modality proves DICOM support is not CT-specific |
 | `skimage_brain_mri.tif` | 256×256 **16-bit** TIFF | *"Segment the bright regions and measure them."* | 4 regions | Real MRI at native 16-bit depth, range **0–47089**. Medical data is rarely 8-bit — this is what the loader's rescaling exists for |

@@ -8,9 +8,9 @@ manual left/right lung masks), scoring Dice/IoU against the ground truth:
 3. ``ml_cxr_lung``  — the segment_ml deep-learning tool (torchxrayvision).
 
 This complements the synthetic benchmark (run_benchmark.py). It needs the
-optional ``[ml]`` dependencies and the Montgomery dataset in
-``data/montgomery`` (see docs/datasets.md). All numbers are produced by
-running the pipelines — never hard-coded.
+optional ``[ml]`` dependencies and the Montgomery County chest X-ray set
+(with its manual lung masks) unpacked into ``data/montgomery``. All numbers
+are produced by running the pipelines — never hard-coded.
 
     python benchmark/run_cxr_benchmark.py [num_images]
 
@@ -76,7 +76,8 @@ def main() -> None:
     if not IMG_DIR.is_dir():
         print(
             f"Montgomery dataset not found at {IMG_DIR}.\n"
-            "Download it (see docs/datasets.md) into data/montgomery, then re-run."
+            "Download the Montgomery County chest X-ray set (images + manual lung "
+            "masks) into data/montgomery, then re-run."
         )
         sys.exit(1)
 
@@ -152,7 +153,7 @@ def _write_outputs(rows: list[dict[str, object]], num_images: int) -> None:
             "",
             table(summary),
             "",
-            "Classical Otsu thresholding cannot isolate lung fields (the brightest "
+            "Classical Otsu thresholding can not isolate lung fields (the brightest "
             "pixels are bone, the darkest are air outside the body), so both polarities "
             "score poorly; the deep-learning model learned lung anatomy.",
             "",

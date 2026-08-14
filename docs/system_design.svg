@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 890" width="1280" height="890" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">SciFlow Agent system architecture</title>
+  <desc id="desc">A natural-language request is turned into a plan by either an offline rule-based planner or an LLM. The plan passes schema validation, semantic validation, and explicit human approval before a controlled executor dispatches it against a fixed registry of eight approved tools. Results and a reproducibility report are returned.</desc>
+
+  <style>
+    .bg    { fill: #ffffff; }
+    .t     { fill: #1a1f2b; }
+    .muted { fill: #5b6472; }
+    .mono  { font-family: 'SF Mono', 'Cascadia Code', Consolas, 'Liberation Mono', monospace; }
+    .h1    { font-size: 25px; font-weight: 700; }
+    .stage { font-size: 13px; font-weight: 700; letter-spacing: .09em; }
+    .box   { font-size: 14px; font-weight: 600; }
+    .sub   { font-size: 11.5px; }
+    .tiny  { font-size: 10.5px; }
+    .card  { rx: 8; ry: 8; stroke-width: 1.5; }
+    .ui    { fill: #eaf1fd; stroke: #4a7fd4; }
+    .io    { fill: #e9f6f1; stroke: #2f9e77; }
+    .plan  { fill: #eaf7ea; stroke: #4a9c4a; }
+    .guard { fill: #fdecec; stroke: #d24a4a; }
+    .exec  { fill: #fdf3e3; stroke: #d09022; }
+    .tool  { fill: #f2ecfb; stroke: #7d5bc4; }
+    .out   { fill: #fdeef4; stroke: #c2467e; }
+    .arrow { stroke: #4a5462; stroke-width: 2; fill: none; }
+    .lbl   { font-size: 10.5px; fill: #5b6472; }
+  </style>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a5462"/>
+    </marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d24a4a"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1280" height="890"/>
+
+  <text class="t h1" x="40" y="46">SciFlow Agent — System Architecture</text>
+  <text class="muted sub" x="40" y="68">The language model proposes a plan. It never executes anything. Three independent layers stand between its output and any code running.</text>
+
+  <!-- ============ STAGE 1 : INPUT ============ -->
+  <text class="muted stage" x="40" y="110">1 · INPUT</text>
+
+  <rect class="card ui" x="40" y="124" width="212" height="66"/>
+  <text class="t box" x="56" y="150">Researcher</text>
+  <text class="muted sub" x="56" y="170">Image + request, in plain language</text>
+
+  <rect class="card ui" x="40" y="204" width="212" height="86"/>
+  <text class="t box" x="56" y="230">Streamlit UI</text>
+  <text class="muted sub mono" x="56" y="249">app.py</text>
+  <text class="muted sub" x="56" y="270">Wiring only — no analysis logic</text>
+
+  <rect class="card io" x="40" y="304" width="212" height="110"/>
+  <text class="t box" x="56" y="330">Image loader</text>
+  <text class="muted sub mono" x="56" y="349">src/image_io.py</text>
+  <text class="muted sub" x="56" y="370">PNG · JPG · TIFF · DICOM (2D)</text>
+  <text class="muted sub" x="56" y="388">Normalize to 8-bit, keep range</text>
+  <text class="muted sub" x="56" y="406">SHA-256 of the input bytes</text>
+
+  <!-- ============ STAGE 2 : PLANNING ============ -->
+  <text class="muted stage" x="300" y="110">2 · PLANNING</text>
+
+  <rect class="card plan" x="300" y="124" width="238" height="66"/>
+  <text class="t box" x="316" y="150">Planner front door</text>
+  <text class="muted sub mono" x="316" y="170">src/agent/planner.py</text>
+
+  <rect class="card plan" x="300" y="204" width="238" height="86"/>
+  <text class="t box" x="316" y="230">Demo planner — offline</text>
+  <text class="muted sub mono" x="316" y="249">src/agent/demo_planner.py</text>
+  <text class="muted sub" x="316" y="270">Keyword rules. No network, no API key</text>
+
+  <rect class="card plan" x="300" y="304" width="238" height="110"/>
+  <text class="t box" x="316" y="330">LLM planner</text>
+  <text class="muted sub mono" x="316" y="349">src/agent/prompts.py</text>
+  <text class="muted sub" x="316" y="370">Any OpenAI-compatible endpoint</text>
+  <text class="muted sub" x="316" y="388">One repair retry, then a clear error</text>
+  <text class="muted sub" x="316" y="406">Sends request text + metadata only</text>
+
+  <rect class="card plan" x="300" y="428" width="238" height="46" stroke-dasharray="5 3"/>
+  <text class="muted sub" x="316" y="447">Both emit the same schema and take</text>
+  <text class="muted sub" x="316" y="464">the same validation path.</text>
+
+  <!-- ============ STAGE 3 : THE BOUNDARY ============ -->
+  <text class="muted stage" x="586" y="110">3 · VALIDATION BOUNDARY</text>
+
+  <rect x="586" y="124" width="300" height="404" rx="12" ry="12" fill="#fff8f8" stroke="#d24a4a" stroke-width="2.5" stroke-dasharray="8 4"/>
+  <text x="602" y="150" class="sub" fill="#d24a4a" font-weight="700">Nothing crosses without passing all three</text>
+
+  <rect class="card guard" x="602" y="164" width="268" height="102"/>
+  <text class="t box" x="618" y="190">Layer 1 · Schema</text>
+  <text class="muted sub mono" x="618" y="209">src/agent/schemas.py</text>
+  <text class="muted sub" x="618" y="230">Tool name must be in the enum</text>
+  <text class="muted sub" x="618" y="248">Parameters bounded; unknown fields rejected</text>
+
+  <rect class="card guard" x="602" y="278" width="268" height="120"/>
+  <text class="t box" x="618" y="304">Layer 2 · Semantic</text>
+  <text class="muted sub mono" x="618" y="323">src/plan_validator.py</text>
+  <text class="muted sub" x="618" y="344">Workflow order via data-flow types</text>
+  <text class="muted sub" x="618" y="362">Step limit enforced</text>
+  <text class="muted sub" x="618" y="380">Plans marked unsupported are refused</text>
+
+  <rect class="card guard" x="602" y="410" width="268" height="102"/>
+  <text class="t box" x="618" y="436">Layer 3 · Human approval</text>
+  <text class="muted sub" x="618" y="457">The researcher reads the plan in plain</text>
+  <text class="muted sub" x="618" y="475">language and presses Execute.</text>
+  <text class="muted sub" x="618" y="493">A rejected plan has no button at all.</text>
+
+  <!-- ============ STAGE 4 : EXECUTION ============ -->
+  <text class="muted stage" x="934" y="110">4 · EXECUTION</text>
+
+  <rect class="card exec" x="934" y="124" width="306" height="104"/>
+  <text class="t box" x="950" y="150">Controlled executor</text>
+  <text class="muted sub mono" x="950" y="169">src/executor.py</text>
+  <text class="muted sub" x="950" y="190">Dispatch is a dictionary lookup — there is</text>
+  <text class="muted sub" x="950" y="208">no other execution path in the codebase</text>
+
+  <rect class="card tool" x="934" y="242" width="306" height="316"/>
+  <text class="t box" x="950" y="268">Fixed tool registry</text>
+  <text class="muted sub mono" x="950" y="287">src/tool_registry.py</text>
+
+  <rect x="950" y="300" width="274" height="26" rx="5" ry="5" fill="#ffffff" stroke="#7d5bc4" stroke-width="1"/>
+  <text class="t sub mono" x="962" y="317">convert_to_grayscale</text>
+  <rect x="950" y="331" width="274" height="26" rx="5" ry="5" fill="#ffffff" stroke="#7d5bc4" stroke-width="1"/>
+  <text class="t sub mono" x="962" y="348">denoise_median</text>
+  <text class="lbl" x="1120" y="348">radius 1–5</text>
+  <rect x="950" y="362" width="274" height="26" rx="5" ry="5" fill="#ffffff" stroke="#7d5bc4" stroke-width="1"/>
+  <text class="t sub mono" x="962" y="379">enhance_contrast</text>
+  <text class="lbl" x="1104" y="379">clip 0.001–0.1</text>
+  <rect x="950" y="393" width="274" height="26" rx="5" ry="5" fill="#ffffff" stroke="#7d5bc4" stroke-width="1"/>
+  <text class="t sub mono" x="962" y="410">segment_otsu</text>
+  <text class="lbl" x="1094" y="410">bright / dark</text>
+  <rect x="950" y="424" width="274" height="26" rx="5" ry="5" fill="#ffffff" stroke="#7d5bc4" stroke-width="1"/>
+  <text class="t sub mono" x="962" y="441">segment_threshold</text>
+  <text class="lbl" x="1090" y="441">6 methods · N classes</text>
+  <rect x="950" y="455" width="274" height="26" rx="5" ry="5" fill="#f5efff" stroke="#7d5bc4" stroke-width="1.5"/>
+  <text class="t sub mono" x="962" y="472">segment_ml</text>
+  <text class="lbl" x="1072" y="472" font-weight="700">deep learning ·  [ml]</text>
+  <rect x="950" y="486" width="274" height="26" rx="5" ry="5" fill="#ffffff" stroke="#7d5bc4" stroke-width="1"/>
+  <text class="t sub mono" x="962" y="503">clean_mask</text>
+  <text class="lbl" x="1076" y="503">min size · fill holes</text>
+  <rect x="950" y="517" width="274" height="26" rx="5" ry="5" fill="#ffffff" stroke="#7d5bc4" stroke-width="1"/>
+  <text class="t sub mono" x="962" y="534">measure_objects</text>
+
+  <!-- ============ ARROWS : main flow ============ -->
+  <path class="arrow" d="M 146 190 L 146 204" marker-end="url(#a)"/>
+  <path class="arrow" d="M 146 290 L 146 304" marker-end="url(#a)"/>
+  <path class="arrow" d="M 252 157 L 300 157" marker-end="url(#a)"/>
+  <text class="lbl" x="256" y="149">request</text>
+  <path class="arrow" d="M 419 190 L 419 204" marker-end="url(#a)"/>
+  <path class="arrow" d="M 419 290 L 419 304" marker-end="url(#a)"/>
+  <path class="arrow" d="M 538 157 L 586 157" marker-end="url(#a)"/>
+  <text class="lbl" x="540" y="149">plan (JSON)</text>
+  <path class="arrow" d="M 886 176 L 934 176" marker-end="url(#a)" stroke="#d24a4a"/>
+  <g transform="translate(910,330) rotate(-90)">
+    <text class="lbl" x="0" y="4" fill="#d24a4a" font-weight="700" text-anchor="middle">approved plans only</text>
+  </g>
+
+  <path class="arrow" d="M 1087 228 L 1087 242" marker-end="url(#a)"/>
+
+  <!-- ============ STAGE 5 : OUTPUT ============ -->
+  <text class="muted stage" x="40" y="606">5 · RESULTS AND REPRODUCIBILITY</text>
+
+  <rect class="card out" x="40" y="620" width="290" height="132"/>
+  <text class="t box" x="56" y="646">Visual results</text>
+  <text class="muted sub mono" x="56" y="665">src/visualization.py</text>
+  <text class="muted sub" x="56" y="686">Segmentation mask · overlay</text>
+  <text class="muted sub" x="56" y="704">Labelled objects, one colour each</text>
+  <text class="muted sub" x="56" y="722">Every intermediate step retained</text>
+
+  <rect class="card out" x="354" y="620" width="290" height="132"/>
+  <text class="t box" x="370" y="646">Measurements</text>
+  <text class="muted sub mono" x="370" y="665">src/tools/measurement.py</text>
+  <text class="muted sub" x="370" y="686">Per object: area, perimeter, axes,</text>
+  <text class="muted sub" x="370" y="704">centroid, bounding box, intensity</text>
+  <text class="muted sub" x="370" y="722">Summary statistics across all objects</text>
+
+  <rect class="card out" x="668" y="620" width="572" height="132"/>
+  <text class="t box" x="684" y="646">Reproducibility report</text>
+  <text class="muted sub mono" x="684" y="665">src/reporting.py</text>
+  <text class="muted sub" x="684" y="686">JSON and Markdown. Records the input image SHA-256, the validated plan with every</text>
+  <text class="muted sub" x="684" y="704">default filled in, per-step parameters and runtimes, and — for segment_ml — the model</text>
+  <text class="muted sub" x="684" y="722">name, framework versions, device, and weights SHA-256. Produced for failed runs too.</text>
+
+  <path class="arrow" d="M 1087 558 L 1087 586 L 185 586 L 185 620" marker-end="url(#a)"/>
+  <path class="arrow" d="M 499 586 L 499 620" marker-end="url(#a)"/>
+  <path class="arrow" d="M 954 586 L 954 620" marker-end="url(#a)"/>
+
+  <!-- ============ FOOTER : invariants ============ -->
+  <rect x="40" y="778" width="1200" height="80" rx="8" ry="8" fill="#f6f7f9" stroke="#c8ced8" stroke-width="1.5"/>
+  <text class="t box" x="56" y="804">Enforced invariants</text>
+  <text class="muted sub" x="56" y="826">No eval · no exec · no shell · no dynamic imports · no file paths taken from model output · secrets never reach logs, errors, or reports</text>
+  <text class="muted sub" x="56" y="846">Adding a capability means adding one registry entry — it cannot bypass the boundary. The deep-learning tool was added without changing the executor or the validator.</text>
+</svg>

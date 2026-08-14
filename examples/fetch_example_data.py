@@ -48,6 +48,10 @@ PYDICOM_IMAGES = (
     ("MR_small.dcm", "pydicom_mr_small.dcm"),
 )
 
+#: A compressed bundled CT that is re-saved uncompressed, so reading it needs
+#: only plain pydicom with no JPEG 2000 codec installed.
+PYDICOM_RECOMPRESSED = (("693_J2KI.dcm", "pydicom_ct_head.dcm"),)
+
 #: Longest edge for the downscaled chest X-ray (originals exceed the 4096 cap).
 CXR_TARGET_WIDTH = 1024
 
@@ -117,6 +121,41 @@ def fetch_pydicom_images(output_dir: Path = EXAMPLES_DIR) -> list[Path]:
         destination = output_dir / output_name
         destination.write_bytes(Path(source).read_bytes())
         print(f"Wrote {destination.name}  (DICOM, from pydicom test data)")
+        written.append(destination)
+    return written
+
+
+def fetch_uncompressed_pydicom(output_dir: Path = EXAMPLES_DIR) -> list[Path]:
+    """Re-save compressed bundled DICOMs with an uncompressed transfer syntax.
+
+    A head CT is the clearest demonstration of ``segment_threshold``: it holds
+    air, soft tissue and bone, which a single threshold cannot separate. The
+    bundled copy is JPEG 2000, so decoding it needs an optional codec; writing
+    it back uncompressed means the example loads with plain pydicom.
+    """
+    import pydicom
+    from pydicom.data import get_testdata_file
+    from pydicom.uid import ExplicitVRLittleEndian
+
+    written: list[Path] = []
+    for source_name, output_name in PYDICOM_RECOMPRESSED:
+        source = get_testdata_file(source_name)
+        if not source:
+            print(f"Skipped {output_name} — pydicom test file {source_name} not found.")
+            continue
+        try:
+            dataset = pydicom.dcmread(source)
+            pixels = dataset.pixel_array  # forces decoding while a codec is present
+        # Any codec gap should skip this example, never crash the whole fetch.
+        except Exception as exc:
+            print(f"Skipped {output_name} — could not decode {source_name}: {exc}")
+            continue
+        dataset.PixelData = pixels.tobytes()
+        dataset.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+        dataset["PixelData"].is_undefined_length = False
+        destination = output_dir / output_name
+        dataset.save_as(destination, enforce_file_format=True)
+        print(f"Wrote {destination.name}  ({pixels.shape}, DICOM {dataset.Modality}, uncompressed)")
         written.append(destination)
     return written
 
@@ -208,6 +247,7 @@ def main() -> None:
     fetch_bundled_skimage()
     fetch_downloaded_skimage()
     fetch_pydicom_images()
+    fetch_uncompressed_pydicom()
     build_chest_xray_dicom()
     print("\nDone. See examples/README.md for what each image demonstrates.")
 

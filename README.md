@@ -34,13 +34,49 @@ Controlled execution → mask, overlay, per-object measurements
 Downloadable JSON / Markdown reproducibility report
 ```
 
-## Screenshots
+## Architecture
 
-| Plan review and approval | Results |
-|---|---|
-| ![Plan review](docs/screenshots/02_plan_review.png) | ![Results](docs/screenshots/03_results_masks.png) |
+![SciFlow Agent system architecture](docs/system_design.svg)
 
-*(Full walkthrough in [docs/screenshots/](docs/screenshots/).)*
+The language model proposes a plan; three independent layers — schema validation, semantic
+validation, and explicit human approval — stand between its output and any code running.
+Details in [docs/architecture.md](docs/architecture.md).
+
+## One analysis, start to finish
+
+The app opens on a real head CT, read from DICOM, with the request for it already suggested:
+
+![Opening view](docs/screenshots/01_input_request.png)
+
+Asking for *"the bone inside"* produces a plan — and nothing runs yet. The planner states its
+goal, **warns that it switched to multi-level thresholding and why**, lists the resolved
+steps, and stops at the Execute button:
+
+![Plan review](docs/screenshots/02_plan_review.png)
+
+After approval: the mask, the overlay on the original, each object labelled, and the summary.
+The skull is isolated at 5.8% of the frame — where a single Otsu threshold returns about 75%:
+
+![Results](docs/screenshots/03_results_masks.png)
+
+Then the per-object measurements and the downloadable reproducibility report:
+
+![Measurements and report](docs/screenshots/04_measurements_report.png)
+
+### What a CT cannot show
+
+**Deep-learning lung segmentation, read straight from a DICOM chest radiograph** — both lungs
+segmented and labelled separately:
+
+![Deep-learning lung segmentation from DICOM](docs/screenshots/06_ml_results.png)
+
+**And scale** — 275 nuclei in a fluorescence micrograph, where the CT walkthrough correctly
+finds a single object:
+
+![275 nuclei in fluorescence microscopy](docs/screenshots/07_microscopy_results.png)
+
+*(All seven screenshots, why the set is split this way, and the script that regenerates them:
+[docs/screenshots/](docs/screenshots/).)*
 
 ## Measured, not promised
 
@@ -75,7 +111,8 @@ pip install -e ".[ml]"     # adds torch + torchxrayvision (large; GPU optional)
 The tool **auto-detects a CUDA GPU** (falling back to CPU), and every run records the model
 name, framework/torch versions, device, and the **weights SHA-256** in the reproducibility
 report. Ask for it in plain language — *"Segment the lungs in this chest X-ray and measure
-them."* — and try the built-in `example_chest_xray.png`.
+them."* — and try the built-in `example_chest_xray.png`, or `montgomery_cxr.dcm` to run the
+same analysis straight from a DICOM.
 
 **Classical vs deep learning** on real chest X-rays (Montgomery set, ground-truth lung masks):
 
@@ -87,8 +124,28 @@ them."* — and try the built-in `example_chest_xray.png`.
 
 Classical thresholding cannot isolate lungs — the brightest pixels are bone, so both
 polarities fail; the model learned lung anatomy. Reproduce with
-`python benchmark/run_cxr_benchmark.py` (needs the `[ml]` extra and the dataset — see
-[docs/datasets.md](docs/datasets.md)).
+`python benchmark/run_cxr_benchmark.py` (needs the `[ml]` extra, plus the Montgomery
+County chest X-ray set with its manual lung masks unpacked into `data/montgomery`).
+
+### Separating three or more tissue classes
+
+A single Otsu threshold splits an image in two, which fails whenever it holds more than two
+intensity populations. A CT slice holds three — air, soft tissue, and bone — so *"segment the
+bone"* under a single threshold returns the entire body: Otsu cuts between air and everything
+else. `segment_threshold` with `method="multiotsu"` splits the histogram into N classes and
+keeps only the extreme one. Measured against Hounsfield-unit ground truth (bone > 300 HU) on
+three independent CT slices:
+
+| Method | Mean Dice vs. bone |
+|---|---|
+| `segment_otsu` (single threshold) | 0.20 |
+| `segment_threshold` multi-Otsu, 3 classes | 0.40 |
+| **`segment_threshold` multi-Otsu, 4 classes** | **0.88** |
+
+Ask for it in plain language — *"Remove noise, segment the bone, ignore very small regions,
+and measure them."* The planner routes requests naming the densest or brightest structures
+(bone, calcification, "the brightest regions") to multi-level thresholding and says so in a
+plan warning.
 
 ### Medical images (DICOM)
 
@@ -114,7 +171,22 @@ streamlit run app.py
 ```
 
 The app opens at `http://localhost:8501` and works immediately in **demo mode** — no API
-key, no network. Two built-in example images are included.
+key, no network.
+
+It **opens on a real head CT**, read from DICOM, with the request that suits it already
+suggested — so the first thing you see is medical imaging, not a placeholder. The example
+list is ordered by modality with medical imaging first: CT, X-ray, MR, retina, histology,
+then microscopy, astronomy, and finally a few controlled images kept for their known ground
+truth. Each one carries the request that best demonstrates it.
+
+Fetch the full set with:
+
+```bash
+python examples/fetch_example_data.py
+```
+
+See [examples/README.md](examples/README.md) for what each image demonstrates, the request
+to try, and the result to expect.
 
 ### Docker
 
@@ -183,6 +255,7 @@ validation feedback, then a clear error; demo mode always remains available as f
 | `denoise_median` | `radius` 1–5 |
 | `enhance_contrast` | `clip_limit` 0.001–0.1 (CLAHE) |
 | `segment_otsu` | `polarity` bright/dark |
+| `segment_threshold` | `method` otsu/**multiotsu**/li/yen/triangle/isodata, `classes` 2–5, `polarity` bright/dark |
 | `segment_ml` | `model_name` (cxr_lung), `threshold` 0.05–0.95 — **deep learning, optional `[ml]`** |
 | `clean_mask` | `minimum_object_size` 0–100 000, `fill_holes` |
 | `measure_objects` | standard measurement set |
@@ -198,8 +271,7 @@ validation feedback, then a clear error; demo mode always remains available as f
 - Secrets live in environment variables, are excluded from `repr()`, logs, error
   messages, and reports — enforced by tests.
 
-Details: [docs/architecture.md](docs/architecture.md) · decision history:
-[docs/decision_log.md](docs/decision_log.md)
+Details: [docs/architecture.md](docs/architecture.md)
 
 ## Development
 
@@ -245,16 +317,17 @@ src/
   agent/                  Planners: demo rules, LLM client, prompts, plan schemas
   tools/                  Approved tools: preprocessing, segmentation, measurement, ML
   config.py               Env-based configuration
+  example_catalogue.py    Which example opens first, their order, per-image requests
   image_io.py             Loading, validation, normalization, metadata + SHA-256
   plan_validator.py       Semantic plan validation
   tool_registry.py        The fixed registry (the only dispatch table)
   executor.py             Controlled workflow executor
   reporting.py            JSON/Markdown reproducibility reports
   visualization.py        Masks, overlays, labelled renderings
-examples/                 Deterministic example images + demo scripts
+examples/                 Real medical/scientific images + fetch and demo scripts
 benchmark/                Synthetic dataset, metrics, results (CSV/MD)
-tests/                    200 unit, integration, and UI tests
-docs/                     Architecture, decision log, screenshots
+tests/                    267 unit, integration, and UI tests
+docs/                     Architecture, user guide, screenshots
 ```
 
 ## Limitations
