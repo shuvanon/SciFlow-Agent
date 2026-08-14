@@ -106,7 +106,11 @@ def measure_objects(
     Args:
         mask: 2D binary mask.
         intensity_image: Optional 2D grayscale image of the same shape; when
-            given, the per-object mean intensity is measured on it.
+            given, the per-object mean intensity is measured on it. Pass the
+            *unenhanced* grayscale image: the executor supplies the photometric
+            baseline (the image before denoising or contrast enhancement) so
+            that ``mean_intensity`` describes the sample rather than the
+            preprocessing.
 
     Returns:
         A tuple of (per-object measurements table, summary statistics). The

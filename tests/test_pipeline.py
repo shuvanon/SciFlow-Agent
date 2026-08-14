@@ -26,7 +26,8 @@ def test_full_pipeline_on_cells_example() -> None:
     mask = clean_mask(raw_mask, minimum_object_size=40, fill_holes=True)
 
     _, raw_summary = measure_objects(raw_mask)
-    measurements, summary = measure_objects(mask, intensity_image=denoised)
+    # Photometric baseline: the unenhanced grayscale, as the executor uses.
+    measurements, summary = measure_objects(mask, intensity_image=grayscale)
 
     # The image contains dozens of large cells plus small specks and noise.
     assert raw_summary.object_count > summary.object_count  # cleanup removed specks

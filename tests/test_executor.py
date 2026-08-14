@@ -210,6 +210,47 @@ def test_measure_uses_grayscale_intensity() -> None:
     assert result.measurements["mean_intensity"].min() > 150  # bright objects
 
 
+def test_intensity_uses_unenhanced_baseline_not_the_processed_image() -> None:
+    """Enhancement must not move mean_intensity: it describes the sample.
+
+    CLAHE is non-linear and spatially adaptive, so measuring on its output
+    would make the reported intensity an artifact of the plan rather than a
+    property of the image.
+    """
+    image = _synthetic_image()
+
+    plain = execute_plan(_validated(_reference_plan()), image)
+    with_clahe = execute_plan(
+        _validated(
+            ExecutionPlan(
+                goal="enhance_and_measure",
+                supported=True,
+                explanation="Enhance contrast before segmenting.",
+                steps=[
+                    ToolStep(tool="convert_to_grayscale"),
+                    ToolStep(tool="denoise_median", parameters={"radius": 1}),
+                    ToolStep(tool="enhance_contrast", parameters={"clip_limit": 0.05}),
+                    ToolStep(tool="segment_otsu"),
+                    ToolStep(tool="clean_mask", parameters={"minimum_object_size": 20}),
+                    ToolStep(tool="measure_objects"),
+                ],
+            )
+        ),
+        image,
+    )
+
+    assert plain.measurements is not None
+    assert with_clahe.measurements is not None
+    # Guard: the comparison below is only meaningful if both runs found the
+    # same objects, so a mask difference must fail loudly rather than silently.
+    assert with_clahe.summary.object_count == plain.summary.object_count
+    assert with_clahe.measurements["area"].tolist() == plain.measurements["area"].tolist()
+
+    assert with_clahe.measurements["mean_intensity"].tolist() == pytest.approx(
+        plain.measurements["mean_intensity"].tolist()
+    )
+
+
 @pytest.mark.parametrize("channels,expected_first_tool", [(3, "convert_to_grayscale")])
 def test_validator_and_executor_work_together_on_rgb(channels, expected_first_tool) -> None:
     rgb = np.zeros((48, 48, 3), dtype=np.uint8)

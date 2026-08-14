@@ -10,6 +10,14 @@ The executor runs a validated plan step by step. Safety properties:
 - Execution stops at the first failing step; prior results are preserved.
 - Every step records its runtime and warnings; failures become readable
   error messages without stack traces (full tracebacks go to the log only).
+
+Intensity measurement uses the **photometric baseline**: the first 2D
+grayscale image in the pipeline — the input itself, or the output of
+``convert_to_grayscale`` — never the enhanced image. Enhancement steps change
+pixel values (CLAHE is non-linear and spatially adaptive, so a post-CLAHE mean
+carries no photometric meaning), and ``mean_intensity`` is meant to describe
+the sample, not the preprocessing. Segmentation still runs on the fully
+processed image; only the reported intensity is taken from the baseline.
 """
 
 from __future__ import annotations
@@ -80,6 +88,11 @@ def execute_plan(plan: ExecutionPlan, image: np.ndarray) -> ExecutionResult:
 
     current_image = image.copy()
     current_mask: np.ndarray | None = None
+    # Photometric baseline for intensity measurement: the first 2D grayscale
+    # image in the pipeline (the input itself, or the output of
+    # convert_to_grayscale). Deliberately *not* updated by later enhancement
+    # steps — see the note in the module docstring.
+    intensity_reference: np.ndarray | None = current_image if current_image.ndim == 2 else None
 
     for index, step in enumerate(plan.steps, start=1):
         label = f"Step {index} ({step.tool})"
@@ -103,9 +116,8 @@ def execute_plan(plan: ExecutionPlan, image: np.ndarray) -> ExecutionResult:
             if definition.output_type == OUTPUT_TABLE:
                 if current_mask is None:
                     raise ToolInputError("no segmentation mask exists; run segment_otsu first.")
-                intensity = current_image if current_image.ndim == 2 else None
                 result.measurements, result.summary = definition.function(
-                    current_mask, intensity_image=intensity, **kwargs
+                    current_mask, intensity_image=intensity_reference, **kwargs
                 )
                 if result.summary.object_count == 0:
                     step_warnings.append("No objects detected in the segmentation mask.")
@@ -125,6 +137,10 @@ def execute_plan(plan: ExecutionPlan, image: np.ndarray) -> ExecutionResult:
             else:
                 current_image = definition.function(current_image, **kwargs)
                 result.images[f"{index:02d}_{step.tool}"] = current_image
+                if intensity_reference is None and current_image.ndim == 2:
+                    # First grayscale image only: convert_to_grayscale sets the
+                    # baseline, denoise/enhance_contrast must not overwrite it.
+                    intensity_reference = current_image
         except ToolInputError as exc:
             result.errors.append(f"{label}: {exc}")
             break

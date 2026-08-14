@@ -53,7 +53,9 @@ def main() -> None:
     enhanced = enhance_contrast(denoised, clip_limit=0.01)
     raw_mask = segment_otsu(enhanced, polarity="bright")
     mask = clean_mask(raw_mask, minimum_object_size=40, fill_holes=True)
-    measurements, summary = measure_objects(mask, intensity_image=denoised)
+    # Intensity is measured on the unenhanced grayscale (the photometric
+    # baseline), matching what the executor does — not on `enhanced`.
+    measurements, summary = measure_objects(mask, intensity_image=grayscale)
     labels = label_objects(mask)
 
     Image.fromarray(grayscale).save(output_dir / "01_grayscale.png")
