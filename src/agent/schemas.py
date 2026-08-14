@@ -24,6 +24,7 @@ AllowedToolName = Literal[
     "denoise_median",
     "enhance_contrast",
     "segment_otsu",
+    "segment_threshold",
     "segment_ml",
     "clean_mask",
     "measure_objects",
@@ -35,6 +36,7 @@ ALLOWED_TOOL_NAMES: tuple[str, ...] = (
     "denoise_median",
     "enhance_contrast",
     "segment_otsu",
+    "segment_threshold",
     "segment_ml",
     "clean_mask",
     "measure_objects",
@@ -88,6 +90,32 @@ class OtsuParameters(_StrictModel):
     @field_validator("polarity", mode="before")
     @classmethod
     def _normalize_polarity(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+
+class ThresholdParameters(_StrictModel):
+    """Parameters for ``segment_threshold``."""
+
+    method: Literal["otsu", "multiotsu", "li", "yen", "triangle", "isodata"] = Field(
+        default=segmentation.DEFAULT_THRESHOLD_METHOD,
+        description="Thresholding method; 'multiotsu' separates three or more intensity classes.",
+    )
+    classes: int = Field(
+        default=segmentation.DEFAULT_THRESHOLD_CLASSES,
+        ge=segmentation.MIN_THRESHOLD_CLASSES,
+        le=segmentation.MAX_THRESHOLD_CLASSES,
+        description="Number of intensity classes for 'multiotsu'; ignored by other methods.",
+    )
+    polarity: Literal["bright", "dark"] = Field(
+        default=segmentation.POLARITY_BRIGHT,
+        description="Keep the brightest or the darkest class.",
+    )
+
+    @field_validator("method", "polarity", mode="before")
+    @classmethod
+    def _normalize(cls, value: object) -> object:
         if isinstance(value, str):
             return value.strip().lower()
         return value

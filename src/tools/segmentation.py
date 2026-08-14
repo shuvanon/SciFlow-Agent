@@ -18,6 +18,29 @@ MIN_OBJECT_SIZE_LIMIT = 0
 MAX_OBJECT_SIZE_LIMIT = 100_000
 DEFAULT_MINIMUM_OBJECT_SIZE = 30
 
+#: Threshold methods approved for ``segment_threshold``.
+#:
+#: ``otsu``, ``li``, ``yen``, ``triangle`` and ``isodata`` each split the
+#: histogram in two. ``multiotsu`` splits it into ``classes`` levels and keeps
+#: only the extreme one, which is the difference that matters when an image
+#: holds three or more distinct intensity populations — a CT slice, for
+#: instance, contains air, soft tissue and bone, and a single cut cannot
+#: separate bone from soft tissue no matter where it is placed.
+THRESHOLD_METHODS = ("otsu", "multiotsu", "li", "yen", "triangle", "isodata")
+DEFAULT_THRESHOLD_METHOD = "otsu"
+
+MIN_THRESHOLD_CLASSES = 2
+MAX_THRESHOLD_CLASSES = 5
+DEFAULT_THRESHOLD_CLASSES = 3
+
+_TWO_CLASS_FUNCTIONS = {
+    "otsu": filters.threshold_otsu,
+    "li": filters.threshold_li,
+    "yen": filters.threshold_yen,
+    "triangle": filters.threshold_triangle,
+    "isodata": filters.threshold_isodata,
+}
+
 
 def _require_2d(array: np.ndarray, tool_name: str, kind: str) -> None:
     if not isinstance(array, np.ndarray) or array.ndim != 2:
@@ -47,6 +70,77 @@ def segment_otsu(image: np.ndarray, polarity: str = POLARITY_BRIGHT) -> np.ndarr
     if image.min() == image.max():
         return np.zeros(image.shape, dtype=bool)
     threshold = filters.threshold_otsu(image)
+    if polarity == POLARITY_BRIGHT:
+        return image > threshold
+    return image <= threshold
+
+
+def segment_threshold(
+    image: np.ndarray,
+    method: str = DEFAULT_THRESHOLD_METHOD,
+    classes: int = DEFAULT_THRESHOLD_CLASSES,
+    polarity: str = POLARITY_BRIGHT,
+) -> np.ndarray:
+    """Create a binary mask using a chosen thresholding method.
+
+    Generalizes :func:`segment_otsu`. The reason it exists is ``multiotsu``:
+    a two-class threshold assumes the image holds a foreground and a
+    background, and returns a poor mask whenever it holds more than that.
+    On a CT slice — air, soft tissue, bone — Otsu separates air from
+    everything else, so asking for "the bone" yields the whole body.
+    ``multiotsu`` splits the histogram into ``classes`` levels and keeps only
+    the brightest (or darkest) one.
+
+    Args:
+        image: 2D uint8 grayscale image.
+        method: One of :data:`THRESHOLD_METHODS`.
+        classes: Number of intensity classes for ``multiotsu``, in
+            [``MIN_THRESHOLD_CLASSES``, ``MAX_THRESHOLD_CLASSES``]. Ignored by
+            the two-class methods.
+        polarity: ``"bright"`` keeps the brightest class, ``"dark"`` the
+            darkest.
+
+    Returns:
+        Boolean mask. A single-intensity image has nothing to separate and
+        yields an all-background mask.
+
+    Raises:
+        ToolInputError: If the method, class count, or polarity is invalid, or
+            if the image has too few distinct intensities for ``classes``
+            levels.
+    """
+    _require_2d(image, "segment_threshold", "grayscale image")
+    if method not in THRESHOLD_METHODS:
+        raise ToolInputError(
+            f"segment_threshold: method must be one of {THRESHOLD_METHODS}, got {method!r}."
+        )
+    if polarity not in VALID_POLARITIES:
+        raise ToolInputError(
+            f"segment_threshold: polarity must be one of {VALID_POLARITIES}, got {polarity!r}."
+        )
+    if isinstance(classes, bool) or not isinstance(classes, int):
+        raise ToolInputError(f"segment_threshold: classes must be an integer, got {classes!r}.")
+    if not MIN_THRESHOLD_CLASSES <= classes <= MAX_THRESHOLD_CLASSES:
+        raise ToolInputError(
+            f"segment_threshold: classes must be between {MIN_THRESHOLD_CLASSES} and "
+            f"{MAX_THRESHOLD_CLASSES}, got {classes}."
+        )
+    if image.min() == image.max():
+        return np.zeros(image.shape, dtype=bool)
+
+    if method == "multiotsu":
+        try:
+            thresholds = filters.threshold_multiotsu(image, classes=classes)
+        except ValueError as exc:
+            raise ToolInputError(
+                f"segment_threshold: the image does not have enough distinct intensities for "
+                f"{classes} classes ({exc}). Try fewer classes."
+            ) from exc
+        if polarity == POLARITY_BRIGHT:
+            return image > thresholds[-1]
+        return image <= thresholds[0]
+
+    threshold = _TWO_CLASS_FUNCTIONS[method](image)
     if polarity == POLARITY_BRIGHT:
         return image > threshold
     return image <= threshold

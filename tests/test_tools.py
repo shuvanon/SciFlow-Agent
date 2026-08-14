@@ -16,7 +16,12 @@ from src.tools.preprocessing import (
     denoise_median,
     enhance_contrast,
 )
-from src.tools.segmentation import clean_mask, segment_otsu
+from src.tools.segmentation import (
+    THRESHOLD_METHODS,
+    clean_mask,
+    segment_otsu,
+    segment_threshold,
+)
 
 # --- convert_to_grayscale -------------------------------------------------
 
@@ -292,3 +297,79 @@ def test_measure_rejects_mismatched_intensity_shape() -> None:
 def test_measure_rejects_non_2d_mask() -> None:
     with pytest.raises(ToolInputError):
         measure_objects(np.zeros((5, 5, 3), dtype=bool))
+
+
+def _three_class_image() -> np.ndarray:
+    """Air, soft tissue, and a small dense core — a CT slice's intensity structure.
+
+    6400 dark pixels, 3500 mid-grey, 100 bright. The two largest groups are
+    dark and mid-grey, so a single threshold lands between them and the bright
+    core is never separated.
+    """
+    image = np.full((100, 100), 10, dtype=np.uint8)
+    image[20:80, 20:80] = 120
+    image[45:55, 45:55] = 240
+    return image
+
+
+def test_otsu_cannot_isolate_the_brightest_of_three_classes() -> None:
+    """The limitation segment_threshold exists to fix; pinned so it stays understood."""
+    image = _three_class_image()
+
+    mask = segment_otsu(image, polarity="bright")
+
+    # Otsu returns soft tissue *and* the core (3600 px), not the 100 px core.
+    assert mask.sum() == 3600
+
+
+def test_multiotsu_isolates_the_brightest_class() -> None:
+    image = _three_class_image()
+
+    mask = segment_threshold(image, method="multiotsu", classes=3, polarity="bright")
+
+    assert np.array_equal(mask, image == 240)
+
+
+def test_multiotsu_dark_polarity_takes_the_darkest_class() -> None:
+    image = _three_class_image()
+
+    mask = segment_threshold(image, method="multiotsu", classes=3, polarity="dark")
+
+    assert np.array_equal(mask, image == 10)
+
+
+@pytest.mark.parametrize("method", THRESHOLD_METHODS)
+def test_every_approved_method_returns_a_boolean_mask(method: str) -> None:
+    image = _three_class_image()
+
+    mask = segment_threshold(image, method=method, classes=3)
+
+    assert mask.dtype == np.bool_
+    assert mask.shape == image.shape
+
+
+def test_multiotsu_reports_when_the_image_has_too_few_levels() -> None:
+    """A clear, actionable error beats silently using a different class count."""
+    with pytest.raises(ToolInputError, match="distinct intensities"):
+        segment_threshold(_three_class_image(), method="multiotsu", classes=4)
+
+
+def test_segment_threshold_rejects_unknown_method() -> None:
+    with pytest.raises(ToolInputError, match="method must be one of"):
+        segment_threshold(_three_class_image(), method="magic")
+
+
+def test_segment_threshold_rejects_out_of_range_classes() -> None:
+    with pytest.raises(ToolInputError, match="classes must be between"):
+        segment_threshold(_three_class_image(), method="multiotsu", classes=99)
+
+
+def test_segment_threshold_rejects_invalid_polarity() -> None:
+    with pytest.raises(ToolInputError, match="polarity must be one of"):
+        segment_threshold(_three_class_image(), polarity="sideways")
+
+
+def test_segment_threshold_on_constant_image_returns_empty_mask() -> None:
+    mask = segment_threshold(np.full((10, 10), 7, dtype=np.uint8), method="multiotsu")
+
+    assert not mask.any()

@@ -22,7 +22,7 @@ from src.tools import ml_segmentation, preprocessing, segmentation
 from src.tools.measurement import measure_objects
 from src.tools.ml_segmentation import segment_ml
 from src.tools.preprocessing import convert_to_grayscale, denoise_median, enhance_contrast
-from src.tools.segmentation import clean_mask, segment_otsu
+from src.tools.segmentation import clean_mask, segment_otsu, segment_threshold
 
 INPUT_IMAGE = "image"  # accepts grayscale or RGB
 INPUT_GRAYSCALE = "grayscale_image"
@@ -91,6 +91,21 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {
         description="Create a binary mask by Otsu thresholding. Parameter: polarity "
         "('bright' for bright objects on dark background, 'dark' for the opposite; "
         "default 'bright').",
+    ),
+    "segment_threshold": ToolDefinition(
+        name="segment_threshold",
+        function=segment_threshold,
+        parameter_model=schemas.ThresholdParameters,
+        input_type=INPUT_GRAYSCALE,
+        output_type=OUTPUT_MASK,
+        description="Create a binary mask using a chosen thresholding method. Parameters: "
+        "method ('" + "', '".join(segmentation.THRESHOLD_METHODS) + "'; default '"
+        f"{segmentation.DEFAULT_THRESHOLD_METHOD}'), classes (integer, "
+        f"{segmentation.MIN_THRESHOLD_CLASSES}-{segmentation.MAX_THRESHOLD_CLASSES}, default "
+        f"{segmentation.DEFAULT_THRESHOLD_CLASSES}; used only by 'multiotsu'), polarity "
+        "('bright' or 'dark'). Prefer method='multiotsu' when the image holds three or more "
+        "intensity populations and only the brightest or darkest is wanted — for example "
+        "bone in a CT slice, where plain Otsu returns the whole body.",
     ),
     "segment_ml": ToolDefinition(
         name="segment_ml",
