@@ -35,9 +35,17 @@ UNSAFE_PROMPTS = [
 
 OUT_OF_SCOPE_PROMPTS = [
     "Segment this 3D volume.",
-    "Load the DICOM series and segment it.",
+    "Load the DICOM series and segment it.",  # a *series* is a 3D stack
+    "Open the NIfTI file and measure it.",
     "Train a neural network on my images.",
     "Use Cellpose to segment the cells.",
+]
+
+#: 2D DICOM is a supported input format, so naming it must not be refused.
+DICOM_PROMPTS = [
+    "Segment the lungs in this DICOM chest X-ray and measure them.",
+    "Count the bright objects in this DICOM image.",
+    "Segment the bright regions in the .dcm file and measure them.",
 ]
 
 
@@ -172,6 +180,73 @@ def test_out_of_scope_prompts_are_rejected(prompt: str) -> None:
     assert not plan.supported
     assert "Supported operations" in plan.explanation
     assert not validate_plan(plan, channels=3).valid
+
+
+#: Requests naming the extreme intensity class, which a single threshold cannot isolate.
+DENSEST_PROMPTS = [
+    "Remove noise, segment the bone inside, ignore very small regions, and measure them.",
+    "Segment the bones and measure them.",
+    "Segment the densest structures and count them.",
+    "Segment the brightest regions and measure them.",
+    "Find the calcifications and measure them.",
+]
+
+
+@pytest.mark.parametrize("prompt", DENSEST_PROMPTS)
+def test_densest_requests_use_multilevel_thresholding(prompt: str) -> None:
+    """'Bone' means the brightest of several classes, not 'brighter than average'.
+
+    A plain Otsu threshold separates the two largest intensity groups — on a CT
+    slice that is air from the whole body, so the bone request returns the body.
+    """
+    plan = generate_demo_plan(prompt, channels=1)
+
+    assert plan.supported, plan.explanation
+    tools = [step.tool for step in plan.steps]
+    assert "segment_threshold" in tools
+    assert "segment_otsu" not in tools
+
+    step = next(s for s in plan.steps if s.tool == "segment_threshold")
+    assert step.parameters["method"] == "multiotsu"
+    assert step.parameters["classes"] >= 3
+    assert step.parameters["polarity"] == "bright"
+    assert validate_plan(plan, channels=1).valid
+    assert any("Multi-level thresholding" in warning for warning in plan.warnings)
+
+
+def test_darkest_request_takes_the_darkest_class() -> None:
+    plan = generate_demo_plan("Segment the darkest regions and measure them.", channels=1)
+
+    step = next(s for s in plan.steps if s.tool == "segment_threshold")
+    assert step.parameters["polarity"] == "dark"
+
+
+def test_ordinary_bright_requests_still_use_plain_otsu() -> None:
+    """Multi-level thresholding must not hijack the common case."""
+    plan = generate_demo_plan("Count the bright objects in this image.", channels=1)
+
+    tools = [step.tool for step in plan.steps]
+    assert "segment_otsu" in tools
+    assert "segment_threshold" not in tools
+
+
+def test_lung_request_still_routes_to_the_ml_tool() -> None:
+    """'Chest X-ray' plus 'bright' must not be captured by the densest-class rule."""
+    plan = generate_demo_plan("Segment the lungs in this chest X-ray and measure them.", channels=1)
+
+    tools = [step.tool for step in plan.steps]
+    assert "segment_ml" in tools
+    assert "segment_threshold" not in tools
+
+
+@pytest.mark.parametrize("prompt", DICOM_PROMPTS)
+def test_dicom_requests_are_supported(prompt: str) -> None:
+    """DICOM is a supported 2D input format; naming it must not refuse the plan."""
+    plan = generate_demo_plan(prompt, channels=1)
+
+    assert plan.supported, plan.explanation
+    assert plan.steps
+    assert validate_plan(plan, channels=1).valid
 
 
 def test_empty_request_is_rejected() -> None:
