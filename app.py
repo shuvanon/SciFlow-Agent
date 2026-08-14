@@ -73,7 +73,11 @@ def _sidebar_input(config: AppConfig) -> LoadedImage | None:
         source_id: str | None = None
         try:
             if source == "example":
-                example_paths = sorted(EXAMPLES_DIR.glob("*.png"))
+                example_paths = sorted(
+                    path
+                    for extension in SUPPORTED_EXTENSIONS
+                    for path in EXAMPLES_DIR.glob(f"*{extension}")
+                )
                 if not example_paths:
                     st.error(
                         "No example images found. Generate them with "
@@ -98,7 +102,7 @@ def _sidebar_input(config: AppConfig) -> LoadedImage | None:
                     key="file_upload",
                 )
                 if uploaded is None:
-                    st.caption("PNG, JPG/JPEG, or TIFF.")
+                    st.caption("PNG, JPG/JPEG, TIFF, or DICOM (.dcm/.dicom).")
                     return None
                 data = uploaded.getvalue()
                 loaded = load_image_bytes(
@@ -157,6 +161,17 @@ def _describe_step(step: ToolStep) -> str:
         return f"Enhance contrast (CLAHE, clip limit {parameters.get('clip_limit', 0.01)})"
     if step.tool == "segment_otsu":
         return f"Segment {parameters.get('polarity', 'bright')} objects using Otsu thresholding"
+    if step.tool == "segment_threshold":
+        method = parameters.get("method", "otsu")
+        polarity = parameters.get("polarity", "bright")
+        extreme = "brightest" if polarity == "bright" else "darkest"
+        if method == "multiotsu":
+            classes = parameters.get("classes", 3)
+            return (
+                f"Split the intensities into {classes} classes (multi-level Otsu) "
+                f"and keep the {extreme} one"
+            )
+        return f"Segment the {extreme} regions by {method} thresholding"
     if step.tool == "segment_ml":
         model = parameters.get("model_name", "cxr_lung")
         return f"Segment with a pretrained deep-learning model ({model})"
